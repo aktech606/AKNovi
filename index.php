@@ -610,7 +610,7 @@
 
                 <select
                     id="subjectSelect"
-                    onchange="loadChapters()">
+                    >
 
                     <option value="Tamil">
                         Tamil

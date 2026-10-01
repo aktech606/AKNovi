@@ -739,23 +739,111 @@ button:active {
 
 .study-card select {
     width: 100%;
-
-    border: 1px solid var(--border);
-    border-radius: 11px;
-
-    padding: 13px 12px;
-
-    background: #fafcfa;
-    color: var(--text);
-
-    outline: none;
-
-    font-size: 12px;
-    font-weight: 700;
 }
 
-.study-card select:focus {
+.study-card .custom-select {
+    position: relative;
+    width: 100%;
+}
+
+.study-card .native-select-proxy {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.custom-select-trigger {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 13px 40px 13px 12px;
+    background: #fafcfa;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 43px;
+    transition: border-color .16s ease, box-shadow .16s ease;
+}
+
+.custom-select-trigger:hover,
+.custom-select.is-open .custom-select-trigger {
     border-color: var(--green-dark);
+}
+
+.custom-select-trigger:focus-visible {
+    outline: 3px solid rgba(142, 213, 30, .35);
+    outline-offset: 2px;
+}
+
+.custom-select-arrow {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    margin: -4px 2px 0 12px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(45deg);
+    transition: transform .16s ease;
+}
+
+.custom-select.is-open .custom-select-arrow {
+    transform: rotate(225deg);
+    margin-top: 4px;
+}
+
+.custom-select-list {
+    position: absolute;
+    z-index: 30;
+    inset: calc(100% + 6px) 0 auto;
+    max-height: min( min(48vh, 360px), 420px );
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 5px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(7, 27, 20, .15);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity .14s ease, transform .14s ease, visibility .14s;
+}
+
+.custom-select.is-open .custom-select-list {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.custom-select-option {
+    min-height: 40px;
+    padding: 11px 10px;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.custom-select-option:hover,
+.custom-select-option:focus,
+.custom-select-option.is-selected {
+    background: #f0f6e9;
+}
+
+.custom-select-option.is-selected {
+    box-shadow: inset 3px 0 var(--green-dark);
 }
 
 

@@ -56,6 +56,7 @@ function selectSubject(subject) {
         subjectSelect.value = subject;
 
         loadChapters();
+        syncCustomSelect(subjectSelect);
     }
 
 
@@ -170,7 +171,7 @@ function loadChapters() {
             "No chapters available";
 
         chapterSelect.appendChild(option);
-
+        syncCustomSelect(chapterSelect);
         return;
     }
 
@@ -187,6 +188,154 @@ function loadChapters() {
         chapterSelect.appendChild(option);
 
     });
+
+    syncCustomSelect(chapterSelect);
+}
+
+/* =========================================================
+   CUSTOM STUDY SELECTS
+   Native selects remain the source of truth for existing study logic.
+   ========================================================= */
+
+function syncCustomSelect(select) {
+    if (!select || !select._customSelect) return;
+    const ui = select._customSelect;
+    const optionsChanged = ui.list.children.length !== select.options.length ||
+        Array.from(ui.list.children).some(function(option, index) {
+            return !select.options[index] || option.textContent !== select.options[index].textContent.trim();
+        });
+    if (ui.refreshOptions && optionsChanged) {
+        ui.refreshOptions();
+        return;
+    }
+    const selected = select.options[select.selectedIndex];
+    ui.value.textContent = selected ? selected.textContent.trim() : "Select an option";
+    ui.list.querySelectorAll('[role="option"]').forEach(function(option, index) {
+        const active = select.options[index] && select.options[index].value === select.value;
+        option.setAttribute("aria-selected", active ? "true" : "false");
+        option.classList.toggle("is-selected", !!active);
+        if (active) ui.button.setAttribute("aria-activedescendant", option.id);
+    });
+    if (!select.options.length) ui.button.removeAttribute("aria-activedescendant");
+}
+
+function buildCustomSelect(select) {
+    if (!select || select._customSelect) return;
+    const wrapper = document.createElement("div");
+    wrapper.className = "custom-select";
+    select.parentNode.insertBefore(wrapper, select);
+    wrapper.appendChild(select);
+    select.classList.add("native-select-proxy");
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "custom-select-trigger";
+    button.id = select.id + "CustomButton";
+    button.setAttribute("aria-haspopup", "listbox");
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-controls", select.id + "CustomList");
+    const value = document.createElement("span");
+    value.className = "custom-select-value";
+    const arrow = document.createElement("span");
+    arrow.className = "custom-select-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    button.append(value, arrow);
+
+    const list = document.createElement("div");
+    list.className = "custom-select-list";
+    list.id = select.id + "CustomList";
+    list.setAttribute("role", "listbox");
+    list.setAttribute("aria-labelledby", select.id + "CustomButton");
+    wrapper.append(button, list);
+    select._customSelect = { wrapper, button, value, list, open: false };
+
+    function refreshOptions() {
+        list.replaceChildren();
+        Array.from(select.options).forEach(function(nativeOption, index) {
+            const option = document.createElement("div");
+            option.className = "custom-select-option";
+            option.id = select.id + "Option" + index;
+            option.setAttribute("role", "option");
+            option.setAttribute("aria-selected", "false");
+            option.textContent = nativeOption.textContent.trim();
+            option.addEventListener("click", function() {
+                select.selectedIndex = index;
+                select.dispatchEvent(new Event("change", { bubbles: true }));
+                close(false);
+                button.focus();
+            });
+            list.appendChild(option);
+        });
+        syncCustomSelect(select);
+    }
+    select._customSelect.refreshOptions = refreshOptions;
+    function close(returnFocus) {
+        select._customSelect.open = false;
+        wrapper.classList.remove("is-open");
+        button.setAttribute("aria-expanded", "false");
+        if (returnFocus) button.focus();
+    }
+    function open() {
+        document.querySelectorAll(".custom-select.is-open").forEach(function(other) {
+            const otherSelect = other.querySelector("select");
+            if (otherSelect && otherSelect._customSelect) {
+                otherSelect._customSelect.open = false;
+                other.classList.remove("is-open");
+                otherSelect._customSelect.button.setAttribute("aria-expanded", "false");
+            }
+        });
+        select._customSelect.open = true;
+        wrapper.classList.add("is-open");
+        button.setAttribute("aria-expanded", "true");
+        const selected = list.querySelector('[aria-selected="true"]');
+        if (selected) selected.scrollIntoView({ block: "nearest" });
+    }
+    button.addEventListener("click", function() {
+        select._customSelect.open ? close(false) : open();
+    });
+    button.addEventListener("keydown", function(event) {
+        const options = Array.from(list.querySelectorAll('[role="option"]'));
+        let index = Number.isInteger(select._customSelect.activeIndex)
+            ? select._customSelect.activeIndex
+            : select.selectedIndex;
+        if (["ArrowDown", "ArrowUp", "Home", "End", "Enter", " "].includes(event.key)) event.preventDefault();
+        if (event.key === "ArrowDown") index = Math.min(index + 1, options.length - 1);
+        else if (event.key === "ArrowUp") index = Math.max(index - 1, 0);
+        else if (event.key === "Home") index = 0;
+        else if (event.key === "End") index = options.length - 1;
+        else if (event.key === "Enter" || event.key === " ") {
+            if (!select._customSelect.open) open();
+            else if (options[index]) options[index].click();
+            return;
+        } else if (event.key === "Escape") {
+            if (select._customSelect.open) { event.preventDefault(); close(false); }
+            return;
+        } else if (event.key === "Tab") { close(false); return; }
+        else if (event.key.length === 1 && /\S/.test(event.key)) {
+            const found = Array.from(select.options).findIndex(function(opt) {
+                return opt.textContent.trim().toLowerCase().startsWith(event.key.toLowerCase());
+            });
+            if (found >= 0) index = found;
+            else return;
+        } else return;
+        select._customSelect.activeIndex = index;
+        if (!select._customSelect.open) open();
+        else if (options[index]) options[index].scrollIntoView({ block: "nearest" });
+        if (options[index]) {
+            options.forEach(function(option, optionIndex) {
+                option.classList.toggle("is-active", optionIndex === index);
+            });
+            button.setAttribute("aria-activedescendant", options[index].id);
+        }
+    });
+    select.addEventListener("change", function() {
+        refreshOptions();
+        if (select.id === "subjectSelect") loadChapters();
+    });
+    document.addEventListener("pointerdown", function(event) {
+        if (!wrapper.contains(event.target) && select._customSelect.open) close(false);
+    });
+    refreshOptions();
 }
 
 
@@ -473,5 +622,8 @@ document.addEventListener("keydown", function(event) {
 document.addEventListener("DOMContentLoaded", function() {
 
     loadChapters();
+    ["subjectSelect", "chapterSelect", "questionType"].forEach(function(id) {
+        buildCustomSelect(document.getElementById(id));
+    });
 
 });
