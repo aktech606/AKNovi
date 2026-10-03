@@ -46,17 +46,259 @@ function openPage(pageName) {
    SUBJECT SELECTION
    ========================================================= */
 
-function selectSubject(subject) {
+const API_URL = new URL("../api/data.php", document.currentScript.src).href;
+const referenceData = { subjects: [], mediums: [], question_types: [] };
+const chapterCache = new Map();
+const chapterRequests = new Map();
+let activeChapterRequest = null;
+
+async function apiRequest(params, options) {
+    const url = new URL(API_URL, window.location.href);
+    Object.entries(params).forEach(function(entry) {
+        url.searchParams.set(entry[0], entry[1]);
+    });
+    const response = await fetch(url, {
+        headers: { Accept: "application/json" },
+        signal: options?.signal
+    });
+    let payload;
+    try {
+        payload = await response.json();
+    } catch (error) {
+        throw new Error("The server returned an invalid response.");
+    }
+    if (!response.ok || !payload.success) {
+        throw new Error(payload.error || "Study data is temporarily unavailable.");
+    }
+    return payload.data;
+}
+
+function subjectStyle(name) {
+    const styles = {
+        "Tamil": "tamil",
+        "English": "english",
+        "Accountancy": "accountancy",
+        "Computer Applications": "computer",
+        "Commerce": "commerce",
+        "Economics": "economics"
+    };
+    return styles[name] || "";
+}
+
+function setSelectOptions(select, records, valueKey, labelKey, placeholder) {
+    if (!select) return;
+    select.replaceChildren();
+    if (!records.length) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = placeholder;
+        select.appendChild(option);
+        select.disabled = true;
+    } else {
+        records.forEach(function(record) {
+            const option = document.createElement("option");
+            option.value = String(record[valueKey]);
+            option.textContent = record[labelKey];
+            select.appendChild(option);
+        });
+        select.disabled = false;
+    }
+    syncCustomSelect(select);
+}
+
+function renderSubjectCards() {
+    const home = document.getElementById("homeSubjects");
+    const library = document.getElementById("librarySubjects");
+    [home, library].forEach(function(container) {
+        if (!container) return;
+        container.replaceChildren();
+        if (!referenceData.subjects.length) {
+            container.textContent = "No subjects are available.";
+            return;
+        }
+        referenceData.subjects.forEach(function(subject, index) {
+            const card = document.createElement("button");
+            const style = subjectStyle(subject.name);
+            card.type = "button";
+            card.className = (container === home ? "subject-card " : "large-subject ") + style;
+            card.addEventListener("click", function() { selectSubject(subject.id); });
+            if (container === home) {
+                const top = document.createElement("div");
+                top.className = "subject-card-top";
+                const number = document.createElement("span");
+                number.className = "subject-number";
+                number.textContent = String(index + 1).padStart(2, "0");
+                const arrow = document.createElement("span");
+                arrow.className = "subject-arrow";
+                arrow.textContent = "→";
+                top.append(number, arrow);
+                const title = document.createElement("strong");
+                title.textContent = subject.name;
+                const progress = document.createElement("div");
+                progress.className = "subject-progress";
+                progress.innerHTML = '<div class="subject-progress-header"><span>Progress</span><b>0%</b></div><div class="mini-progress"><div style="width:0%"></div></div>';
+                card.append(top, title, progress);
+            } else {
+                const number = document.createElement("span");
+                number.className = "large-number";
+                number.textContent = String(index + 1).padStart(2, "0");
+                const content = document.createElement("div");
+                const title = document.createElement("strong");
+                title.textContent = subject.name;
+                content.appendChild(title);
+                const arrow = document.createElement("b");
+                arrow.textContent = "→";
+                card.append(number, content, arrow);
+            }
+            container.appendChild(card);
+        });
+    });
+}
+
+function renderMediums(records) {
+    const group = document.getElementById("mediumOptions");
+    if (!group) return;
+    group.replaceChildren();
+    if (!records.length) {
+        group.textContent = "No mediums are available.";
+        return;
+    }
+    records.forEach(function(medium, index) {
+        const label = document.createElement("label");
+        label.className = "radio-option";
+        const input = document.createElement("input");
+        input.type = "radio";
+        input.name = "medium";
+        input.value = medium.name;
+        input.checked = index === 0;
+        const text = document.createElement("span");
+        text.textContent = medium.name;
+        label.append(input, text);
+        group.appendChild(label);
+    });
+}
+
+function renderReferenceData(data) {
+    referenceData.subjects = data.subjects || [];
+    referenceData.mediums = data.mediums || [];
+    referenceData.question_types = data.question_types || [];
+    renderSubjectCards();
+    renderMediums(referenceData.mediums);
+
+    const subjectSelect = document.getElementById("subjectSelect");
+    setSelectOptions(subjectSelect, referenceData.subjects, "id", "name", "No subjects available");
+    if (referenceData.subjects.length) {
+        subjectSelect.value = String(data.initial_subject_id || referenceData.subjects[0].id);
+    }
+    syncCustomSelect(subjectSelect);
+
+    setSelectOptions(
+        document.getElementById("questionType"),
+        referenceData.question_types,
+        "id",
+        "name",
+        "No question types available"
+    );
+    const status = document.getElementById("subjectStatus");
+    if (status) status.textContent = "";
+    updateSubjectCount();
+    const initialChapters = data.initial_chapters;
+    if (
+        Array.isArray(initialChapters) &&
+        String(data.initial_subject_id) === subjectSelect.value
+    ) {
+        chapterCache.set(subjectSelect.value, initialChapters);
+        renderChapterOptions(subjectSelect.value, initialChapters);
+    } else {
+        loadChapters();
+    }
+}
+
+function setReferenceError(message) {
+    ["homeSubjects", "librarySubjects"].forEach(function(id) {
+        const node = document.getElementById(id);
+        if (node) node.textContent = message;
+    });
+    ["mediumOptions"].forEach(function(id) {
+        const node = document.getElementById(id);
+        if (node) node.textContent = message;
+    });
+    const status = document.getElementById("subjectStatus");
+    if (status) status.textContent = message;
+    setSelectOptions(document.getElementById("subjectSelect"), [], "id", "name", "Subjects unavailable");
+    setSelectOptions(document.getElementById("questionType"), [], "id", "name", "Question types unavailable");
+}
+
+function updateSubjectCount() {
+    const profileCount = document.getElementById("subjectCount");
+    if (profileCount) profileCount.textContent = String(referenceData.subjects.length);
+}
+
+function updateContinueCard(chapters) {
+    const subjectId = document.getElementById("subjectSelect")?.value;
+    const subject = referenceData.subjects.find(function(item) {
+        return String(item.id) === subjectId;
+    });
+    const chapterSelect = document.getElementById("chapterSelect");
+    const chapter = chapters?.find(function(item) {
+        return String(item.id) === chapterSelect?.value;
+    });
+    const subjectLabel = document.querySelector(".continue-card .subject-label");
+    const chapterTitle = document.getElementById("continueChapter");
+    const chapterLabel = document.getElementById("continueChapterName");
+    if (subjectLabel) subjectLabel.textContent = subject ? subject.name.toUpperCase() : "";
+    if (chapterTitle) chapterTitle.textContent = chapter ? chapter.chapter_name : "Select a subject";
+    if (chapterLabel) chapterLabel.textContent = chapter ? "Chapter " + chapter.chapter_number : "No chapter selected";
+}
+
+function renderChapterOptions(subjectId, chapters) {
+    const subjectSelect = document.getElementById("subjectSelect");
+    const chapterSelect = document.getElementById("chapterSelect");
+    if (!subjectSelect || !chapterSelect || subjectSelect.value !== subjectId) return;
+
+    const status = document.getElementById("subjectStatus");
+    if (chapters.length === 0) {
+        setSelectOptions(
+            chapterSelect,
+            [],
+            "id",
+            "chapter_name",
+            "No chapters available for this subject"
+        );
+        chapterSelect.selectedIndex = 0;
+        chapterSelect.value = "";
+        chapterSelect.disabled = true;
+        if (chapterSelect._customSelect?.refreshOptions) {
+            chapterSelect._customSelect.refreshOptions();
+        } else {
+            syncCustomSelect(chapterSelect);
+        }
+        if (status) status.textContent = "No chapters are available for this subject.";
+        updateContinueCard([]);
+        return;
+    }
+
+    const chapterOptions = chapters.map(function(chapter) {
+        return {
+            ...chapter,
+            display_name: String(chapter.chapter_number).padStart(2, "0") + "  " + chapter.chapter_name
+        };
+    });
+    setSelectOptions(chapterSelect, chapterOptions, "id", "display_name", "No chapters available for this subject");
+    if (status) status.textContent = "";
+    updateContinueCard(chapters);
+}
+
+function selectSubject(subjectId) {
 
     const subjectSelect =
         document.getElementById("subjectSelect");
 
     if (subjectSelect) {
 
-        subjectSelect.value = subject;
-
-        loadChapters();
+        subjectSelect.value = String(subjectId);
         syncCustomSelect(subjectSelect);
+        subjectSelect.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
 
@@ -65,79 +307,10 @@ function selectSubject(subject) {
 
 
 /* =========================================================
-   CHAPTER DATA
-   ========================================================= */
-
-const chapterData = {
-
-    "Tamil": [
-        "Chapter 1",
-        "Chapter 2",
-        "Chapter 3",
-        "Chapter 4",
-        "Chapter 5",
-        "Chapter 6"
-    ],
-
-    "English": [
-        "Unit 1",
-        "Unit 2",
-        "Unit 3",
-        "Unit 4",
-        "Unit 5",
-        "Unit 6"
-    ],
-
-    "Accountancy": [
-        "Chapter 1",
-        "Chapter 2",
-        "Chapter 3",
-        "Chapter 4",
-        "Chapter 5"
-    ],
-
-    "Computer Applications": [
-        "Chapter 1",
-        "Chapter 2",
-        "Chapter 3",
-        "Chapter 4",
-        "Chapter 5"
-    ],
-
-    "Commerce": [
-        "Chapter 1",
-        "Chapter 2",
-        "Chapter 3",
-        "Chapter 4",
-        "Chapter 5",
-        "Chapter 6",
-        "Chapter 7",
-        "Chapter 8"
-    ],
-
-    "Economics": [
-        "Chapter 1",
-        "Chapter 2",
-        "Chapter 3",
-        "Chapter 4",
-        "Chapter 5",
-        "Chapter 6",
-        "Chapter 7",
-        "Chapter 8",
-        "Chapter 9",
-        "Chapter 10",
-        "Chapter 11",
-        "Chapter 12"
-    ]
-
-};
-
-
-/* =========================================================
    LOAD CHAPTERS
    ========================================================= */
 
-function loadChapters() {
+async function loadChapters() {
 
     const subjectSelect =
         document.getElementById("subjectSelect");
@@ -151,45 +324,78 @@ function loadChapters() {
     }
 
 
-    const subject = subjectSelect.value;
-
-    const chapters =
-        chapterData[subject] || [];
-
-
-    chapterSelect.innerHTML = "";
-
-
-    if (chapters.length === 0) {
-
-        const option =
-            document.createElement("option");
-
-        option.value = "";
-
-        option.textContent =
-            "No chapters available";
-
-        chapterSelect.appendChild(option);
-        syncCustomSelect(chapterSelect);
+    const subjectId = subjectSelect.value;
+    if (!subjectId) {
+        if (activeChapterRequest) {
+            if (chapterRequests.get(activeChapterRequest.subjectId) === activeChapterRequest) {
+                chapterRequests.delete(activeChapterRequest.subjectId);
+            }
+            activeChapterRequest.controller.abort();
+            activeChapterRequest = null;
+        }
+        setSelectOptions(chapterSelect, [], "id", "chapter_name", "Select a subject first");
+        updateContinueCard([]);
         return;
     }
 
+    if (activeChapterRequest && activeChapterRequest.subjectId !== subjectId) {
+        if (chapterRequests.get(activeChapterRequest.subjectId) === activeChapterRequest) {
+            chapterRequests.delete(activeChapterRequest.subjectId);
+        }
+        activeChapterRequest.controller.abort();
+        activeChapterRequest = null;
+    }
 
-    chapters.forEach(function(chapter, index) {
+    setSelectOptions(chapterSelect, [], "id", "chapter_name", "Loading chapters…");
+    chapterSelect.disabled = true;
+    const status = document.getElementById("subjectStatus");
+    if (status) status.textContent = "";
+    let request = null;
+    try {
+        let chapters = chapterCache.get(subjectId);
+        if (!chapters) {
+            request = chapterRequests.get(subjectId);
+            if (!request) {
+                const controller = new AbortController();
+                request = {
+                    controller,
+                    promise: apiRequest(
+                        { action: "chapters", subject_id: subjectId },
+                        { signal: controller.signal }
+                    )
+                };
+                chapterRequests.set(subjectId, request);
+                request.promise.then(function(data) {
+                    if (!Array.isArray(data)) {
+                        throw new Error("The server returned invalid chapter data.");
+                    }
+                    chapterCache.set(subjectId, data);
+                }).finally(function() {
+                    if (chapterRequests.get(subjectId) === request) {
+                        chapterRequests.delete(subjectId);
+                    }
+                }).catch(function() {});
+            }
+            request.subjectId = subjectId;
+            activeChapterRequest = request;
+            chapters = await request.promise;
+            if (activeChapterRequest === request) activeChapterRequest = null;
+            if (!Array.isArray(chapters)) {
+                throw new Error("The server returned invalid chapter data.");
+            }
+            chapterCache.set(subjectId, chapters);
+        }
+        if (subjectSelect.value !== subjectId) return;
 
-        const option =
-            document.createElement("option");
-
-        option.value = index + 1;
-
-        option.textContent = chapter;
-
-        chapterSelect.appendChild(option);
-
-    });
-
-    syncCustomSelect(chapterSelect);
+        renderChapterOptions(subjectId, chapters);
+    } catch (error) {
+        if (activeChapterRequest === request) activeChapterRequest = null;
+        if (subjectSelect.value !== subjectId) return;
+        if (error.name === "AbortError") return;
+        setSelectOptions(chapterSelect, [], "id", "chapter_name", "Chapters unavailable");
+        if (status) status.textContent = error.message;
+        updateContinueCard([]);
+    }
 }
 
 /* =========================================================
@@ -210,6 +416,8 @@ function syncCustomSelect(select) {
     }
     const selected = select.options[select.selectedIndex];
     ui.value.textContent = selected ? selected.textContent.trim() : "Select an option";
+    ui.button.disabled = select.disabled || select.options.length === 0;
+    ui.button.removeAttribute("aria-activedescendant");
     ui.list.querySelectorAll('[role="option"]').forEach(function(option, index) {
         const active = select.options[index] && select.options[index].value === select.value;
         option.setAttribute("aria-selected", active ? "true" : "false");
@@ -251,6 +459,7 @@ function buildCustomSelect(select) {
 
     function refreshOptions() {
         list.replaceChildren();
+        select._customSelect.activeIndex = select.selectedIndex;
         Array.from(select.options).forEach(function(nativeOption, index) {
             const option = document.createElement("div");
             option.className = "custom-select-option";
@@ -276,6 +485,7 @@ function buildCustomSelect(select) {
         if (returnFocus) button.focus();
     }
     function open() {
+        if (button.disabled) return;
         document.querySelectorAll(".custom-select.is-open").forEach(function(other) {
             const otherSelect = other.querySelector("select");
             if (otherSelect && otherSelect._customSelect) {
@@ -285,6 +495,12 @@ function buildCustomSelect(select) {
             }
         });
         select._customSelect.open = true;
+        const bounds = wrapper.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - bounds.bottom - 12;
+        const spaceAbove = bounds.top - 12;
+        const openUp = spaceBelow < Math.min(260, list.scrollHeight) && spaceAbove > spaceBelow;
+        wrapper.classList.toggle("opens-up", openUp);
+        list.style.maxHeight = Math.max(120, Math.min(440, openUp ? spaceAbove : spaceBelow)) + "px";
         wrapper.classList.add("is-open");
         button.setAttribute("aria-expanded", "true");
         const selected = list.querySelector('[aria-selected="true"]');
@@ -331,6 +547,9 @@ function buildCustomSelect(select) {
     select.addEventListener("change", function() {
         refreshOptions();
         if (select.id === "subjectSelect") loadChapters();
+        if (select.id === "chapterSelect") {
+            updateContinueCard(chapterCache.get(document.getElementById("subjectSelect").value) || []);
+        }
     });
     document.addEventListener("pointerdown", function(event) {
         if (!wrapper.contains(event.target) && select._customSelect.open) close(false);
@@ -345,14 +564,18 @@ function buildCustomSelect(select) {
 
 function startStudy() {
 
-    const subject =
-        document.getElementById("subjectSelect").value;
+    const subjectId = document.getElementById("subjectSelect").value;
+    const subject = referenceData.subjects.find(function(item) {
+        return String(item.id) === subjectId;
+    });
+    const chapterSelect = document.getElementById("chapterSelect");
+    const questionSelect = document.getElementById("questionType");
+    const result = document.getElementById("studyResult");
 
-    const chapter =
-        document.getElementById("chapterSelect").value;
-
-    const questionType =
-        document.getElementById("questionType").value;
+    if (!subject || !chapterSelect.value || !questionSelect.value) {
+        result.textContent = "Choose an available subject, chapter and question type first.";
+        return;
+    }
 
 
     const mediumElement =
@@ -361,36 +584,11 @@ function startStudy() {
         );
 
 
-    const medium =
-        mediumElement
-            ? mediumElement.value
-            : "English";
+    const medium = mediumElement ? mediumElement.value : "";
 
 
-    const result =
-        document.getElementById("studyResult");
-
-
-    const questionNames = {
-
-        one: "One Mark",
-
-        two: "Two Marks",
-
-        three: "Three Marks",
-
-        five: "Five Marks"
-
-    };
-
-
-    const chapterName =
-        document.getElementById("chapterSelect")
-            .options[
-                document.getElementById("chapterSelect")
-                    .selectedIndex
-            ]
-            ?.textContent || "Chapter";
+    const chapterName = chapterSelect.selectedOptions[0]?.textContent || "Chapter";
+    const questionType = questionSelect.selectedOptions[0]?.textContent || "";
 
 
     result.innerHTML = `
@@ -404,11 +602,11 @@ function startStudy() {
         </h3>
 
         <p>
-            ${escapeHTML(subject)}
+            ${escapeHTML(subject.name)}
             •
             ${escapeHTML(chapterName)}
             •
-            ${escapeHTML(questionNames[questionType] || questionType)}
+            ${escapeHTML(questionType)}
             •
             ${escapeHTML(medium)}
         </p>
@@ -425,66 +623,6 @@ function startStudy() {
 /* =========================================================
    SEARCH
    ========================================================= */
-
-const searchableContent = [
-
-    {
-        title: "Tamil",
-        type: "Subject"
-    },
-
-    {
-        title: "English",
-        type: "Subject"
-    },
-
-    {
-        title: "Accountancy",
-        type: "Subject"
-    },
-
-    {
-        title: "Computer Applications",
-        type: "Subject"
-    },
-
-    {
-        title: "Commerce",
-        type: "Subject"
-    },
-
-    {
-        title: "Economics",
-        type: "Subject"
-    },
-
-    {
-        title: "One Mark Questions",
-        type: "Study Material"
-    },
-
-    {
-        title: "Two Marks Questions",
-        type: "Study Material"
-    },
-
-    {
-        title: "Three Marks Questions",
-        type: "Study Material"
-    },
-
-    {
-        title: "Five Marks Questions",
-        type: "Study Material"
-    },
-
-    {
-        title: "AI Chapter Explainer",
-        type: "Future Feature"
-    }
-
-];
-
 
 function showSearch() {
 
@@ -539,8 +677,15 @@ function searchContent(value) {
     }
 
 
-    const matches =
-        searchableContent.filter(function(item) {
+    const searchableContent = [
+        ...referenceData.subjects.map(function(subject) {
+            return { title: subject.name, type: "Subject" };
+        }),
+        ...referenceData.question_types.map(function(questionType) {
+            return { title: questionType.name + " Questions", type: "Study Material" };
+        })
+    ];
+    const matches = searchableContent.filter(function(item) {
 
             return item.title
                 .toLowerCase()
@@ -619,11 +764,17 @@ document.addEventListener("keydown", function(event) {
    INITIALIZATION
    ========================================================= */
 
-document.addEventListener("DOMContentLoaded", function() {
-
-    loadChapters();
+function initializeApp() {
     ["subjectSelect", "chapterSelect", "questionType"].forEach(function(id) {
         buildCustomSelect(document.getElementById(id));
     });
+    apiRequest({ action: "reference" })
+        .then(renderReferenceData)
+        .catch(function(error) { setReferenceError(error.message); });
+}
 
-});
+if (document.readyState === "loading" && !document.getElementById("subjectSelect")) {
+    document.addEventListener("DOMContentLoaded", initializeApp, { once: true });
+} else {
+    initializeApp();
+}

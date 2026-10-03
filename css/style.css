@@ -770,7 +770,7 @@ button:active {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 43px;
+    min-height: 46px;
     transition: border-color .16s ease, box-shadow .16s ease;
 }
 
@@ -825,8 +825,17 @@ button:active {
     transform: translateY(0);
 }
 
+.custom-select.opens-up .custom-select-list {
+    inset: auto 0 calc(100% + 6px);
+    transform: translateY(4px);
+}
+
+.custom-select.opens-up.is-open .custom-select-list {
+    transform: translateY(0);
+}
+
 .custom-select-option {
-    min-height: 40px;
+    min-height: 44px;
     padding: 11px 10px;
     border-radius: 8px;
     color: var(--text);
@@ -853,13 +862,15 @@ button:active {
 
 .radio-group {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
 }
 
 .radio-option {
     margin: 0 !important;
 
-    flex: 1;
+    flex: 1 1 130px;
+    min-width: 0;
 
     padding: 12px;
 
@@ -1309,6 +1320,16 @@ button:active {
     font-weight: 700;
 }
 
+.data-state {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.study-card > .data-state {
+    margin-top: 7px;
+}
+
 
 /* =========================================================
    RESPONSIVE
@@ -1331,6 +1352,55 @@ button:active {
 
     .welcome-card {
         min-height: 275px;
+    }
+}
+
+@media (min-width: 900px) {
+    .app {
+        max-width: 1100px;
+    }
+
+    .main-content {
+        padding: 34px clamp(30px, 5vw, 64px) 120px;
+    }
+
+    .top-header {
+        padding-left: clamp(30px, 5vw, 64px);
+        padding-right: clamp(30px, 5vw, 64px);
+    }
+
+    .subject-grid,
+    .subjects-grid-large {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+    }
+
+    .bottom-navigation {
+        width: min(1100px, 100%);
+    }
+
+    .custom-select-list {
+        max-height: min(52vh, 440px);
+    }
+}
+
+@media (min-width: 1500px) {
+    .app {
+        max-width: 1280px;
+    }
+
+    .main-content {
+        padding-left: 90px;
+        padding-right: 90px;
+    }
+
+    .top-header {
+        padding-left: 90px;
+        padding-right: 90px;
+    }
+
+    .bottom-navigation {
+        width: min(1280px, 100%);
     }
 }
 
@@ -1379,5 +1449,13 @@ button:active {
 
     .subject-card strong {
         font-size: 14px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
     }
 }

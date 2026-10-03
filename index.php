@@ -136,21 +136,17 @@
                         <div>
 
                             <p class="subject-label">
-                                ECONOMICS
+                                Loading…
                             </p>
 
-                            <h3>
-                                Chapter 1
-                            </h3>
+                            <h3 id="continueChapter">Loading chapter…</h3>
 
-                            <p>
-                                Introduction to Macro Economics
-                            </p>
+                            <p id="continueChapterName">Select a subject to begin</p>
 
                         </div>
 
                         <strong class="continue-percent">
-                            35%
+                            0%
                         </strong>
 
                     </div>
@@ -158,7 +154,7 @@
                     <div class="progress-bar">
                         <div
                             class="progress"
-                            style="width:35%">
+                            style="width:0%">
                         </div>
                     </div>
 
@@ -173,7 +169,7 @@
 
                 <div>
                     <h2>Quick Access</h2>
-                    <p>Your six subjects</p>
+                    <p>Your subjects</p>
                 </div>
 
             </div>
@@ -181,236 +177,8 @@
 
             <!-- SUBJECT GRID -->
 
-            <div class="subject-grid">
-
-
-                <!-- TAMIL -->
-
-                <button
-                    class="subject-card tamil"
-                    onclick="selectSubject('Tamil')">
-
-                    <div class="subject-card-top">
-
-                        <span class="subject-number">
-                            01
-                        </span>
-
-                        <span class="subject-arrow">
-                            →
-                        </span>
-
-                    </div>
-
-                    <strong>Tamil</strong>
-
-                    <small>தமிழ்</small>
-
-                    <div class="subject-progress">
-
-                        <div class="subject-progress-header">
-                            <span>Progress</span>
-                            <b>0%</b>
-                        </div>
-
-                        <div class="mini-progress">
-                            <div style="width:0%"></div>
-                        </div>
-
-                    </div>
-
-                </button>
-
-
-                <!-- ENGLISH -->
-
-                <button
-                    class="subject-card english"
-                    onclick="selectSubject('English')">
-
-                    <div class="subject-card-top">
-
-                        <span class="subject-number">
-                            02
-                        </span>
-
-                        <span class="subject-arrow">
-                            →
-                        </span>
-
-                    </div>
-
-                    <strong>English</strong>
-
-                    <small>English</small>
-
-                    <div class="subject-progress">
-
-                        <div class="subject-progress-header">
-                            <span>Progress</span>
-                            <b>0%</b>
-                        </div>
-
-                        <div class="mini-progress">
-                            <div style="width:0%"></div>
-                        </div>
-
-                    </div>
-
-                </button>
-
-
-                <!-- ACCOUNTANCY -->
-
-                <button
-                    class="subject-card accountancy"
-                    onclick="selectSubject('Accountancy')">
-
-                    <div class="subject-card-top">
-
-                        <span class="subject-number">
-                            03
-                        </span>
-
-                        <span class="subject-arrow">
-                            →
-                        </span>
-
-                    </div>
-
-                    <strong>Accountancy</strong>
-
-                    <small>Accounts</small>
-
-                    <div class="subject-progress">
-
-                        <div class="subject-progress-header">
-                            <span>Progress</span>
-                            <b>0%</b>
-                        </div>
-
-                        <div class="mini-progress">
-                            <div style="width:0%"></div>
-                        </div>
-
-                    </div>
-
-                </button>
-
-
-                <!-- COMPUTER -->
-
-                <button
-                    class="subject-card computer"
-                    onclick="selectSubject('Computer Applications')">
-
-                    <div class="subject-card-top">
-
-                        <span class="subject-number">
-                            04
-                        </span>
-
-                        <span class="subject-arrow">
-                            →
-                        </span>
-
-                    </div>
-
-                    <strong>Computer Applications</strong>
-
-                    <small>Computer</small>
-
-                    <div class="subject-progress">
-
-                        <div class="subject-progress-header">
-                            <span>Progress</span>
-                            <b>0%</b>
-                        </div>
-
-                        <div class="mini-progress">
-                            <div style="width:0%"></div>
-                        </div>
-
-                    </div>
-
-                </button>
-
-
-                <!-- COMMERCE -->
-
-                <button
-                    class="subject-card commerce"
-                    onclick="selectSubject('Commerce')">
-
-                    <div class="subject-card-top">
-
-                        <span class="subject-number">
-                            05
-                        </span>
-
-                        <span class="subject-arrow">
-                            →
-                        </span>
-
-                    </div>
-
-                    <strong>Commerce</strong>
-
-                    <small>Commerce</small>
-
-                    <div class="subject-progress">
-
-                        <div class="subject-progress-header">
-                            <span>Progress</span>
-                            <b>0%</b>
-                        </div>
-
-                        <div class="mini-progress">
-                            <div style="width:0%"></div>
-                        </div>
-
-                    </div>
-
-                </button>
-
-
-                <!-- ECONOMICS -->
-
-                <button
-                    class="subject-card economics"
-                    onclick="selectSubject('Economics')">
-
-                    <div class="subject-card-top">
-
-                        <span class="subject-number">
-                            06
-                        </span>
-
-                        <span class="subject-arrow">
-                            →
-                        </span>
-
-                    </div>
-
-                    <strong>Economics</strong>
-
-                    <small>Economics</small>
-
-                    <div class="subject-progress">
-
-                        <div class="subject-progress-header">
-                            <span>Progress</span>
-                            <b>0%</b>
-                        </div>
-
-                        <div class="mini-progress">
-                            <div style="width:0%"></div>
-                        </div>
-
-                    </div>
-
-                </button>
-
+            <div class="subject-grid" id="homeSubjects" aria-live="polite">
+                <p class="data-state">Loading subjects…</p>
             </div>
 
         </section>
@@ -438,104 +206,8 @@
             </div>
 
 
-            <div class="subjects-grid-large">
-
-
-                <button
-                    class="large-subject tamil"
-                    onclick="selectSubject('Tamil')">
-
-                    <span class="large-number">01</span>
-
-                    <div>
-                        <strong>Tamil</strong>
-                        <small>தமிழ்</small>
-                    </div>
-
-                    <b>→</b>
-
-                </button>
-
-
-                <button
-                    class="large-subject english"
-                    onclick="selectSubject('English')">
-
-                    <span class="large-number">02</span>
-
-                    <div>
-                        <strong>English</strong>
-                        <small>English</small>
-                    </div>
-
-                    <b>→</b>
-
-                </button>
-
-
-                <button
-                    class="large-subject accountancy"
-                    onclick="selectSubject('Accountancy')">
-
-                    <span class="large-number">03</span>
-
-                    <div>
-                        <strong>Accountancy</strong>
-                        <small>Accounts</small>
-                    </div>
-
-                    <b>→</b>
-
-                </button>
-
-
-                <button
-                    class="large-subject computer"
-                    onclick="selectSubject('Computer Applications')">
-
-                    <span class="large-number">04</span>
-
-                    <div>
-                        <strong>Computer Applications</strong>
-                        <small>Computer</small>
-                    </div>
-
-                    <b>→</b>
-
-                </button>
-
-
-                <button
-                    class="large-subject commerce"
-                    onclick="selectSubject('Commerce')">
-
-                    <span class="large-number">05</span>
-
-                    <div>
-                        <strong>Commerce</strong>
-                        <small>Commerce</small>
-                    </div>
-
-                    <b>→</b>
-
-                </button>
-
-
-                <button
-                    class="large-subject economics"
-                    onclick="selectSubject('Economics')">
-
-                    <span class="large-number">06</span>
-
-                    <div>
-                        <strong>Economics</strong>
-                        <small>Economics</small>
-                    </div>
-
-                    <b>→</b>
-
-                </button>
-
+            <div class="subjects-grid-large" id="librarySubjects" aria-live="polite">
+                <p class="data-state">Loading subjects…</p>
             </div>
 
         </section>
@@ -569,32 +241,8 @@
 
                 <h3>Medium</h3>
 
-                <div class="radio-group">
-
-                    <label class="radio-option">
-
-                        <input
-                            type="radio"
-                            name="medium"
-                            value="English"
-                            checked>
-
-                        <span>English</span>
-
-                    </label>
-
-
-                    <label class="radio-option">
-
-                        <input
-                            type="radio"
-                            name="medium"
-                            value="Tamil">
-
-                        <span>Tamil</span>
-
-                    </label>
-
+                <div class="radio-group" id="mediumOptions" aria-live="polite">
+                    <p class="data-state">Loading mediums…</p>
                 </div>
 
             </div>
@@ -608,35 +256,10 @@
                     Subject
                 </label>
 
-                <select
-                    id="subjectSelect"
-                    >
-
-                    <option value="Tamil">
-                        Tamil
-                    </option>
-
-                    <option value="English">
-                        English
-                    </option>
-
-                    <option value="Accountancy">
-                        Accountancy
-                    </option>
-
-                    <option value="Computer Applications">
-                        Computer Applications
-                    </option>
-
-                    <option value="Commerce">
-                        Commerce
-                    </option>
-
-                    <option value="Economics" selected>
-                        Economics
-                    </option>
-
+                <select id="subjectSelect" aria-describedby="subjectStatus" disabled>
+                    <option value="">Loading subjects…</option>
                 </select>
+                <p id="subjectStatus" class="data-state" role="status" aria-live="polite"></p>
 
             </div>
 
@@ -649,28 +272,8 @@
                     Chapter
                 </label>
 
-                <select id="chapterSelect">
-
-                    <option value="1">
-                        Chapter 1
-                    </option>
-
-                    <option value="2">
-                        Chapter 2
-                    </option>
-
-                    <option value="3">
-                        Chapter 3
-                    </option>
-
-                    <option value="4">
-                        Chapter 4
-                    </option>
-
-                    <option value="5">
-                        Chapter 5
-                    </option>
-
+                <select id="chapterSelect" disabled>
+                    <option value="">Select a subject first</option>
                 </select>
 
             </div>
@@ -684,24 +287,8 @@
                     Question Type
                 </label>
 
-                <select id="questionType">
-
-                    <option value="one">
-                        One Mark
-                    </option>
-
-                    <option value="two">
-                        Two Marks
-                    </option>
-
-                    <option value="three">
-                        Three Marks
-                    </option>
-
-                    <option value="five">
-                        Five Marks
-                    </option>
-
+                <select id="questionType" disabled>
+                    <option value="">Loading question types…</option>
                 </select>
 
             </div>
@@ -795,7 +382,7 @@
             <div class="profile-card">
 
                 <div>
-                    <strong>6</strong>
+                    <strong id="subjectCount">—</strong>
                     <span>Subjects</span>
                 </div>
 
