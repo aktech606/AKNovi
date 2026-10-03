@@ -233,6 +233,63 @@ try {
         ]);
     }
 
+    if ($action === 'study_explainer') {
+        $subjectId = positiveId('subject_id');
+        $chapterId = positiveId('chapter_id');
+        $medium = isset($_GET['medium']) && is_string($_GET['medium']) ? trim($_GET['medium']) : '';
+        if ($subjectId === null || $chapterId === null || $medium === '' || strlen($medium) > 100) {
+            respond(['success' => false, 'error' => 'Choose a valid subject, chapter and medium.'], 400);
+        }
+
+        $statement = $pdo->prepare('SELECT id, name FROM subjects WHERE id = :id');
+        $statement->execute(['id' => $subjectId]);
+        $subject = $statement->fetch();
+        $statement = $pdo->prepare(
+            'SELECT id, subject_id, chapter_number, chapter_name
+             FROM chapters
+             WHERE id = :chapter_id AND subject_id = :subject_id'
+        );
+        $statement->execute(['chapter_id' => $chapterId, 'subject_id' => $subjectId]);
+        $chapter = $statement->fetch();
+        $statement = $pdo->prepare('SELECT id, name FROM mediums WHERE name = :name');
+        $statement->execute(['name' => $medium]);
+        $mediumRecord = $statement->fetch();
+        if (!$subject || !$chapter || !$mediumRecord) {
+            respond(['success' => false, 'error' => 'Choose a valid subject, chapter and medium.'], 400);
+        }
+
+        $statement = $pdo->prepare(
+            'SELECT title, video_url, explanation
+             FROM ai_explainers
+             WHERE subject_id = :subject_id
+               AND chapter_id = :chapter_id
+               AND medium = :medium
+             ORDER BY id
+             LIMIT 1'
+        );
+        $statement->execute([
+            'subject_id' => $subjectId,
+            'chapter_id' => $chapterId,
+            'medium' => $mediumRecord['name'],
+        ]);
+        $explainerRow = $statement->fetch();
+        $aiExplainer = $explainerRow ? [
+            'title' => $explainerRow['title'],
+            'video_url' => safeHttpsUrl($explainerRow['video_url']),
+            'explanation' => $explainerRow['explanation'],
+        ] : null;
+
+        respond([
+            'success' => true,
+            'data' => [
+                'subject' => $subject,
+                'chapter' => $chapter,
+                'medium' => $mediumRecord,
+                'ai_explainer' => $aiExplainer,
+            ],
+        ]);
+    }
+
     respond(['success' => false, 'error' => 'Unknown data action.'], 404);
 } catch (Throwable $error) {
     error_log('AKNovi API failure: ' . $error->getMessage());

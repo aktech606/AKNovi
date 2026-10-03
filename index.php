@@ -303,6 +303,15 @@
                 <span>→</span>
 
             </button>
+            <button
+                class="primary-button full-button explainer-open-button"
+                type="button"
+                onclick="startStudyExplainer()">
+
+                Open Study Explainer
+                <span>→</span>
+
+            </button>
             <p id="studySelectorStatus" class="selector-status" role="status" aria-live="polite"></p>
 
 
@@ -313,26 +322,39 @@
              STUDY WORKSPACE
         ====================== -->
 
-        <section id="studyWorkspace" class="page" aria-labelledby="workspaceTitle">
+        <section id="studyWorkspace" class="page" aria-label="Study Material workspace">
             <header class="workspace-header">
                 <button class="workspace-back" type="button" onclick="backToStudy()" aria-label="Back to study selector">
                     <span aria-hidden="true">←</span>
                     <span>Back</span>
                 </button>
-                <div class="workspace-brand" aria-label="AKNovi study material">
-                    <span class="workspace-brand-mark">AK<b>•</b></span>
-                    <div>
-                        <p class="small-label">AKNOVI</p>
-                        <h2 id="workspaceTitle">Study Material</h2>
-                    </div>
-                </div>
-                <div id="workspaceSelection" class="workspace-selection" aria-live="polite"></div>
             </header>
 
             <div id="workspaceContent" class="workspace-content" aria-live="polite">
                 <div class="workspace-loading" role="status">
                     <span class="loading-mark" aria-hidden="true">AK<span>•</span></span>
                     <p>Loading your study material…</p>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- =====================
+             STUDY EXPLAINER WORKSPACE
+        ====================== -->
+
+        <section id="studyExplainerWorkspace" class="page" aria-label="Study Explainer workspace">
+            <header class="workspace-header">
+                <button class="workspace-back" type="button" onclick="backToStudy()" aria-label="Back to study selector">
+                    <span aria-hidden="true">←</span>
+                    <span>Back</span>
+                </button>
+            </header>
+
+            <div id="explainerWorkspaceContent" class="workspace-content" aria-live="polite">
+                <div class="workspace-loading" role="status">
+                    <span class="loading-mark" aria-hidden="true">AK<span>•</span></span>
+                    <p>Loading chapter explainer…</p>
                 </div>
             </div>
         </section>

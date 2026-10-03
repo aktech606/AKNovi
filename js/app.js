@@ -23,7 +23,8 @@ function openPage(pageName) {
         targetPage.classList.add("active-page");
     }
 
-    document.querySelector(".app")?.classList.toggle("is-study-workspace", pageName === "studyWorkspace");
+    const workspacePages = ["studyWorkspace", "studyExplainerWorkspace"];
+    document.querySelector(".app")?.classList.toggle("is-study-workspace", workspacePages.includes(pageName));
 
 
     const navItems = document.querySelectorAll(".nav-item");
@@ -31,7 +32,7 @@ function openPage(pageName) {
     navItems.forEach(function(item) {
         item.classList.remove("active");
 
-        if (item.dataset.page === (pageName === "studyWorkspace" ? "study" : pageName)) {
+        if (item.dataset.page === (workspacePages.includes(pageName) ? "study" : pageName)) {
             item.classList.add("active");
         }
     });
@@ -57,6 +58,10 @@ const studyWorkspaceState = {
     material: null,
     questionIndex: 0,
     answerVisible: false,
+    requestId: 0
+};
+const studyExplainerWorkspaceState = {
+    explainer: null,
     requestId: 0
 };
 
@@ -577,8 +582,8 @@ function makeElement(tag, className, text) {
     return node;
 }
 
-function setWorkspaceLoading(message) {
-    const content = document.getElementById("workspaceContent");
+function setWorkspaceLoading(message, contentId) {
+    const content = document.getElementById(contentId || "workspaceContent");
     content.replaceChildren();
     const loading = makeElement("div", "workspace-loading");
     loading.setAttribute("role", "status");
@@ -588,17 +593,26 @@ function setWorkspaceLoading(message) {
     content.appendChild(loading);
 }
 
-function updateWorkspaceHeader(data) {
-    const selection = document.getElementById("workspaceSelection");
-    selection.replaceChildren();
-    const subject = makeElement("p", "workspace-subject", data.subject.name);
-    const chapter = makeElement(
-        "p",
-        "workspace-chapter",
-        "CHAPTER " + String(data.chapter.chapter_number).padStart(2, "0") + " · " + data.chapter.chapter_name
-    );
-    const context = makeElement("p", "workspace-context", data.question_type.name + " · " + data.medium.name);
-    selection.append(subject, chapter, context);
+function renderSelectionSummary(label, entries) {
+    const summary = makeElement("section", "workspace-selection-summary");
+    summary.setAttribute("aria-label", label);
+    summary.appendChild(makeElement("p", "selection-summary-label", label));
+    const details = makeElement("dl", "empty-selection");
+    entries.forEach(function(entry) {
+        details.append(makeElement("dt", "", entry[0]), makeElement("dd", "", entry[1]));
+    });
+    summary.appendChild(details);
+    return summary;
+}
+
+function selectionEntries(data, includeQuestionType) {
+    const entries = [
+        ["Subject", data.subject.name],
+        ["Chapter", "Chapter " + String(data.chapter.chapter_number).padStart(2, "0") + " · " + data.chapter.chapter_name]
+    ];
+    if (includeQuestionType) entries.push(["Question type", data.question_type.name]);
+    entries.push(["Medium", data.medium.name]);
+    return entries;
 }
 
 function createSupplementaryCard(label, title, description) {
@@ -664,6 +678,7 @@ function renderQuestionWorkspace() {
     const data = studyWorkspaceState.material;
     const content = document.getElementById("workspaceContent");
     content.replaceChildren();
+    content.appendChild(renderSelectionSummary("Selected study material", selectionEntries(data, true)));
     if (!Array.isArray(data.questions) || data.questions.length === 0) {
         const empty = makeElement("section", "workspace-empty");
         empty.setAttribute("aria-labelledby", "emptyTitle");
@@ -674,17 +689,6 @@ function renderQuestionWorkspace() {
         title.id = "emptyTitle";
         empty.appendChild(title);
         empty.appendChild(makeElement("p", "empty-copy", "There are no questions for this selection yet. Choose another option or come back when content is available."));
-        const details = makeElement("dl", "empty-selection");
-        details.id = "emptySelection";
-        [
-            ["Subject", data.subject.name],
-            ["Chapter", "Chapter " + String(data.chapter.chapter_number).padStart(2, "0") + " · " + data.chapter.chapter_name],
-            ["Question type", data.question_type.name],
-            ["Medium", data.medium.name]
-        ].forEach(function(entry) {
-            details.append(makeElement("dt", "", entry[0]), makeElement("dd", "", entry[1]));
-        });
-        empty.appendChild(details);
         const back = makeElement("button", "primary-button", "Back to study selector");
         back.type = "button";
         back.addEventListener("click", backToStudy);
@@ -753,13 +757,13 @@ function renderQuestionWorkspace() {
     if (supplementary) content.appendChild(supplementary);
 }
 
-function renderWorkspaceError(message) {
-    const content = document.getElementById("workspaceContent");
+function renderWorkspaceError(message, contentId, title) {
+    const content = document.getElementById(contentId || "workspaceContent");
     content.replaceChildren();
     const error = makeElement("section", "workspace-empty");
     error.setAttribute("role", "alert");
     error.appendChild(makeElement("p", "small-label", "AKNOVI STUDY"));
-    error.appendChild(makeElement("h2", "", "Study material could not be loaded"));
+    error.appendChild(makeElement("h2", "", title || "Study material could not be loaded"));
     error.appendChild(makeElement("p", "empty-copy", message));
     const back = makeElement("button", "primary-button", "Back to study selector");
     back.type = "button";
@@ -795,12 +799,6 @@ async function startStudy() {
     studyWorkspaceState.questionIndex = 0;
     studyWorkspaceState.answerVisible = false;
     openPage("studyWorkspace");
-    updateWorkspaceHeader({
-        subject: subject,
-        chapter: chapter,
-        question_type: questionType,
-        medium: { name: medium }
-    });
     setWorkspaceLoading("Loading questions and supplementary material…");
 
     try {
@@ -820,11 +818,102 @@ async function startStudy() {
         });
         if (!validQuestions) throw new Error("The server returned incomplete study material.");
         studyWorkspaceState.material = data;
-        updateWorkspaceHeader(data);
         renderQuestionWorkspace();
     } catch (error) {
         if (requestId !== studyWorkspaceState.requestId) return;
         renderWorkspaceError(error.message || "Study data is temporarily unavailable.");
+    }
+}
+
+function renderStudyExplainerWorkspace(data) {
+    const content = document.getElementById("explainerWorkspaceContent");
+    content.replaceChildren();
+    content.appendChild(renderSelectionSummary("Selected explainer material", selectionEntries(data, false)));
+
+    if (!data.ai_explainer) {
+        const empty = makeElement("section", "workspace-empty explainer-empty");
+        empty.setAttribute("aria-labelledby", "explainerEmptyTitle");
+        const icon = makeElement("span", "empty-icon", "AI");
+        icon.setAttribute("aria-hidden", "true");
+        empty.append(icon, makeElement("p", "small-label", "AKNOVI LIBRARY"));
+        const title = makeElement("h2", "", "Chapter explainer is not available yet");
+        title.id = "explainerEmptyTitle";
+        empty.appendChild(title);
+        empty.appendChild(makeElement("p", "empty-copy", "There is no explainer for this subject, chapter and medium yet."));
+        const back = makeElement("button", "primary-button", "Back to study selector");
+        back.type = "button";
+        back.addEventListener("click", backToStudy);
+        empty.appendChild(back);
+        content.appendChild(empty);
+        return;
+    }
+
+    const explainer = data.ai_explainer;
+    const card = makeElement("article", "explainer-card");
+    card.setAttribute("aria-label", "Chapter explainer");
+    card.appendChild(makeElement("p", "supplementary-label", "CHAPTER EXPLAINER"));
+    if (typeof explainer.title === "string" && explainer.title.trim()) {
+        card.appendChild(makeElement("h1", "explainer-title", explainer.title));
+    }
+    if (typeof explainer.explanation === "string" && explainer.explanation.trim()) {
+        card.appendChild(makeElement("p", "explainer-copy", explainer.explanation));
+    }
+    const videoUrl = safeExternalUrl(explainer.video_url);
+    if (videoUrl) {
+        const link = makeElement("a", "primary-button explainer-watch", "Watch Explainer →");
+        link.href = videoUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        card.appendChild(link);
+    }
+    content.appendChild(card);
+}
+
+async function startStudyExplainer() {
+    const subjectId = document.getElementById("subjectSelect")?.value;
+    const chapterId = document.getElementById("chapterSelect")?.value;
+    const medium = document.querySelector('input[name="medium"]:checked')?.value;
+    const subject = referenceData.subjects.find(function(item) { return String(item.id) === subjectId; });
+    const chapter = (chapterCache.get(subjectId) || []).find(function(item) { return String(item.id) === chapterId; });
+    const status = document.getElementById("studySelectorStatus");
+
+    if (!subject || !chapter || !medium) {
+        if (status) status.textContent = "Choose an available subject, chapter and medium first.";
+        return;
+    }
+    if (status) status.textContent = "";
+
+    const requestId = ++studyExplainerWorkspaceState.requestId;
+    studyExplainerWorkspaceState.explainer = null;
+    openPage("studyExplainerWorkspace");
+    setWorkspaceLoading("Loading chapter explainer…", "explainerWorkspaceContent");
+
+    try {
+        const data = await apiRequest({
+            action: "study_explainer",
+            subject_id: subjectId,
+            chapter_id: chapterId,
+            medium: medium
+        });
+        if (requestId !== studyExplainerWorkspaceState.requestId) return;
+        if (!data || !data.subject || !data.chapter || !data.medium || !(data.ai_explainer === null || (data.ai_explainer && typeof data.ai_explainer === "object"))) {
+            throw new Error("The server returned incomplete explainer data.");
+        }
+        if (typeof data.subject.name !== "string" || typeof data.chapter.chapter_name !== "string" || typeof data.medium.name !== "string") {
+            throw new Error("The server returned incomplete explainer data.");
+        }
+        if (data.ai_explainer && (
+            (data.ai_explainer.title !== null && typeof data.ai_explainer.title !== "string") ||
+            (data.ai_explainer.explanation !== null && typeof data.ai_explainer.explanation !== "string") ||
+            (data.ai_explainer.video_url !== null && typeof data.ai_explainer.video_url !== "string")
+        )) {
+            throw new Error("The server returned incomplete explainer data.");
+        }
+        studyExplainerWorkspaceState.explainer = data;
+        renderStudyExplainerWorkspace(data);
+    } catch (error) {
+        if (requestId !== studyExplainerWorkspaceState.requestId) return;
+        renderWorkspaceError(error.message || "Study data is temporarily unavailable.", "explainerWorkspaceContent", "Explainer could not be loaded");
     }
 }
 
