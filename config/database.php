@@ -9,7 +9,7 @@ function database(): PDO
         return $connection;
     }
 
-    $databasePath = '/data/data/com.termux/files/home/aknovi_internal/database/aknovi.db';
+    $databasePath = databasePath();
 
     $connection = new PDO('sqlite:' . $databasePath, null, null, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -21,4 +21,14 @@ function database(): PDO
     $connection->exec('PRAGMA temp_store = MEMORY');
 
     return $connection;
+}
+
+function databasePath(): string
+{
+    return '/data/data/com.termux/files/home/aknovi_internal/database/aknovi.db';
+}
+
+function studyBooksDirectory(): string
+{
+    return dirname(databasePath()) . '/../study_materials';
 }

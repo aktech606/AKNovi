@@ -23,13 +23,15 @@ function openPage(pageName) {
         targetPage.classList.add("active-page");
     }
 
+    document.querySelector(".app")?.classList.toggle("is-study-workspace", pageName === "studyWorkspace");
+
 
     const navItems = document.querySelectorAll(".nav-item");
 
     navItems.forEach(function(item) {
         item.classList.remove("active");
 
-        if (item.dataset.page === pageName) {
+        if (item.dataset.page === (pageName === "studyWorkspace" ? "study" : pageName)) {
             item.classList.add("active");
         }
     });
@@ -37,7 +39,7 @@ function openPage(pageName) {
 
     window.scrollTo({
         top: 0,
-        behavior: "smooth"
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
     });
 }
 
@@ -51,6 +53,12 @@ const referenceData = { subjects: [], mediums: [], question_types: [] };
 const chapterCache = new Map();
 const chapterRequests = new Map();
 let activeChapterRequest = null;
+const studyWorkspaceState = {
+    material: null,
+    questionIndex: 0,
+    answerVisible: false,
+    requestId: 0
+};
 
 async function apiRequest(params, options) {
     const url = new URL(API_URL, window.location.href);
@@ -559,64 +567,265 @@ function buildCustomSelect(select) {
 
 
 /* =========================================================
-   START STUDY
+   STUDY WORKSPACE
    ========================================================= */
 
-function startStudy() {
+function makeElement(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+}
 
-    const subjectId = document.getElementById("subjectSelect").value;
-    const subject = referenceData.subjects.find(function(item) {
-        return String(item.id) === subjectId;
-    });
-    const chapterSelect = document.getElementById("chapterSelect");
-    const questionSelect = document.getElementById("questionType");
-    const result = document.getElementById("studyResult");
+function setWorkspaceLoading(message) {
+    const content = document.getElementById("workspaceContent");
+    content.replaceChildren();
+    const loading = makeElement("div", "workspace-loading");
+    loading.setAttribute("role", "status");
+    const mark = makeElement("span", "loading-mark", "AK•");
+    mark.setAttribute("aria-hidden", "true");
+    loading.append(mark, makeElement("p", "", message));
+    content.appendChild(loading);
+}
 
-    if (!subject || !chapterSelect.value || !questionSelect.value) {
-        result.textContent = "Choose an available subject, chapter and question type first.";
+function updateWorkspaceHeader(data) {
+    const selection = document.getElementById("workspaceSelection");
+    selection.replaceChildren();
+    const subject = makeElement("p", "workspace-subject", data.subject.name);
+    const chapter = makeElement(
+        "p",
+        "workspace-chapter",
+        "CHAPTER " + String(data.chapter.chapter_number).padStart(2, "0") + " · " + data.chapter.chapter_name
+    );
+    const context = makeElement("p", "workspace-context", data.question_type.name + " · " + data.medium.name);
+    selection.append(subject, chapter, context);
+}
+
+function createSupplementaryCard(label, title, description) {
+    const card = makeElement("article", "supplementary-card");
+    card.appendChild(makeElement("p", "supplementary-label", label));
+    if (title) card.appendChild(makeElement("h3", "", title));
+    if (description) card.appendChild(makeElement("p", "supplementary-description", description));
+    return card;
+}
+
+function safeExternalUrl(value) {
+    if (typeof value !== "string" || !value.trim()) return null;
+    try {
+        const url = new URL(value);
+        return url.protocol === "https:" && !url.username && !url.password ? url.href : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function renderSupplementary(data) {
+    const books = data.study_book;
+    const explainer = data.ai_explainer;
+    if (!books && !explainer) return null;
+
+    const section = makeElement("section", "supplementary-section");
+    section.appendChild(makeElement("h2", "", "Supplementary material"));
+    const cards = makeElement("div", "supplementary-grid");
+    if (books) {
+        const card = createSupplementaryCard(
+            "STUDY BOOK · " + data.subject.name + " · " + data.medium.name,
+            books.title,
+            "Subject and medium reference material. This book is not chapter-specific."
+        );
+        if (books.available && typeof books.url === "string") {
+            const link = makeElement("a", "supplementary-link", "Open study book →");
+            link.href = books.url;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            card.appendChild(link);
+        } else {
+            card.appendChild(makeElement("p", "supplementary-unavailable", "The study book file is not available."));
+        }
+        cards.appendChild(card);
+    }
+    if (explainer) {
+        const card = createSupplementaryCard("AI EXPLAINER", explainer.title, explainer.explanation);
+        const videoUrl = safeExternalUrl(explainer.video_url);
+        if (videoUrl) {
+            const link = makeElement("a", "supplementary-link", "Watch explainer →");
+            link.href = videoUrl;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            card.appendChild(link);
+        }
+        cards.appendChild(card);
+    }
+    section.appendChild(cards);
+    return section;
+}
+
+function renderQuestionWorkspace() {
+    const data = studyWorkspaceState.material;
+    const content = document.getElementById("workspaceContent");
+    content.replaceChildren();
+    if (!Array.isArray(data.questions) || data.questions.length === 0) {
+        const empty = makeElement("section", "workspace-empty");
+        empty.setAttribute("aria-labelledby", "emptyTitle");
+        const icon = makeElement("span", "empty-icon", "01");
+        icon.setAttribute("aria-hidden", "true");
+        empty.append(icon, makeElement("p", "small-label", "AKNOVI LIBRARY"));
+        const title = makeElement("h2", "", "Study content is not available yet");
+        title.id = "emptyTitle";
+        empty.appendChild(title);
+        empty.appendChild(makeElement("p", "empty-copy", "There are no questions for this selection yet. Choose another option or come back when content is available."));
+        const details = makeElement("dl", "empty-selection");
+        details.id = "emptySelection";
+        [
+            ["Subject", data.subject.name],
+            ["Chapter", "Chapter " + String(data.chapter.chapter_number).padStart(2, "0") + " · " + data.chapter.chapter_name],
+            ["Question type", data.question_type.name],
+            ["Medium", data.medium.name]
+        ].forEach(function(entry) {
+            details.append(makeElement("dt", "", entry[0]), makeElement("dd", "", entry[1]));
+        });
+        empty.appendChild(details);
+        const back = makeElement("button", "primary-button", "Back to study selector");
+        back.type = "button";
+        back.addEventListener("click", backToStudy);
+        empty.appendChild(back);
+        content.appendChild(empty);
+        const supplementary = renderSupplementary(data);
+        if (supplementary) content.appendChild(supplementary);
         return;
     }
 
+    const index = studyWorkspaceState.questionIndex;
+    const question = data.questions[index];
+    const panel = makeElement("article", "question-panel");
+    panel.setAttribute("aria-labelledby", "questionText");
+    const meta = makeElement("div", "question-meta");
+    meta.appendChild(makeElement("span", "question-number", String(index + 1).padStart(2, "0")));
+    meta.appendChild(makeElement("p", "question-position", "Question " + String(index + 1).padStart(2, "0") + " of " + data.questions.length));
+    panel.appendChild(meta);
+    const questionText = makeElement("h2", "question-text", question.question);
+    questionText.id = "questionText";
+    questionText.tabIndex = -1;
+    panel.appendChild(questionText);
 
-    const mediumElement =
-        document.querySelector(
-            'input[name="medium"]:checked'
-        );
-
-
-    const medium = mediumElement ? mediumElement.value : "";
-
-
-    const chapterName = chapterSelect.selectedOptions[0]?.textContent || "Chapter";
-    const questionType = questionSelect.selectedOptions[0]?.textContent || "";
-
-
-    result.innerHTML = `
-
-        <div class="result-icon">
-            AK<span>•</span>
-        </div>
-
-        <h3>
-            Ready to Learn
-        </h3>
-
-        <p>
-            ${escapeHTML(subject.name)}
-            •
-            ${escapeHTML(chapterName)}
-            •
-            ${escapeHTML(questionType)}
-            •
-            ${escapeHTML(medium)}
-        </p>
-
-    `;
-
-    result.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest"
+    const answer = makeElement("div", "answer-panel", question.answer);
+    answer.id = "questionAnswer";
+    answer.hidden = !studyWorkspaceState.answerVisible;
+    answer.setAttribute("aria-live", "polite");
+    panel.appendChild(answer);
+    const answerToggle = makeElement("button", "answer-toggle", studyWorkspaceState.answerVisible ? "Hide Answer" : "Show Answer");
+    answerToggle.type = "button";
+    answerToggle.setAttribute("aria-expanded", String(studyWorkspaceState.answerVisible));
+    answerToggle.setAttribute("aria-controls", "questionAnswer");
+    answerToggle.addEventListener("click", function() {
+        studyWorkspaceState.answerVisible = !studyWorkspaceState.answerVisible;
+        renderQuestionWorkspace();
+        document.querySelector(".answer-toggle")?.focus();
     });
+    panel.appendChild(answerToggle);
+
+    const controls = makeElement("div", "question-controls");
+    const previous = makeElement("button", "secondary-button", "← Previous");
+    previous.type = "button";
+    previous.disabled = index === 0;
+    previous.addEventListener("click", function() {
+        if (studyWorkspaceState.questionIndex > 0) {
+            studyWorkspaceState.questionIndex -= 1;
+            studyWorkspaceState.answerVisible = false;
+            renderQuestionWorkspace();
+            document.querySelector(".question-text")?.focus({ preventScroll: true });
+        }
+    });
+    const next = makeElement("button", "secondary-button", "Next →");
+    next.type = "button";
+    next.disabled = index >= data.questions.length - 1;
+    next.addEventListener("click", function() {
+        if (studyWorkspaceState.questionIndex < data.questions.length - 1) {
+            studyWorkspaceState.questionIndex += 1;
+            studyWorkspaceState.answerVisible = false;
+            renderQuestionWorkspace();
+            document.querySelector(".question-text")?.focus({ preventScroll: true });
+        }
+    });
+    controls.append(previous, next);
+    content.append(panel, controls);
+    const supplementary = renderSupplementary(data);
+    if (supplementary) content.appendChild(supplementary);
+}
+
+function renderWorkspaceError(message) {
+    const content = document.getElementById("workspaceContent");
+    content.replaceChildren();
+    const error = makeElement("section", "workspace-empty");
+    error.setAttribute("role", "alert");
+    error.appendChild(makeElement("p", "small-label", "AKNOVI STUDY"));
+    error.appendChild(makeElement("h2", "", "Study material could not be loaded"));
+    error.appendChild(makeElement("p", "empty-copy", message));
+    const back = makeElement("button", "primary-button", "Back to study selector");
+    back.type = "button";
+    back.addEventListener("click", backToStudy);
+    error.appendChild(back);
+    content.appendChild(error);
+}
+
+function backToStudy() {
+    openPage("study");
+}
+
+async function startStudy() {
+    const subjectId = document.getElementById("subjectSelect")?.value;
+    const chapterId = document.getElementById("chapterSelect")?.value;
+    const questionTypeId = document.getElementById("questionType")?.value;
+    const medium = document.querySelector('input[name="medium"]:checked')?.value;
+    const content = document.getElementById("workspaceContent");
+    const subject = referenceData.subjects.find(function(item) { return String(item.id) === subjectId; });
+    const chapter = (chapterCache.get(subjectId) || []).find(function(item) { return String(item.id) === chapterId; });
+    const questionType = referenceData.question_types.find(function(item) { return String(item.id) === questionTypeId; });
+
+    if (!subject || !chapter || !questionType || !medium) {
+        const status = document.getElementById("studySelectorStatus");
+        if (status) status.textContent = "Choose an available subject, chapter, question type and medium first.";
+        return;
+    }
+    const selectorStatus = document.getElementById("studySelectorStatus");
+    if (selectorStatus) selectorStatus.textContent = "";
+
+    const requestId = ++studyWorkspaceState.requestId;
+    studyWorkspaceState.material = null;
+    studyWorkspaceState.questionIndex = 0;
+    studyWorkspaceState.answerVisible = false;
+    openPage("studyWorkspace");
+    updateWorkspaceHeader({
+        subject: subject,
+        chapter: chapter,
+        question_type: questionType,
+        medium: { name: medium }
+    });
+    setWorkspaceLoading("Loading questions and supplementary material…");
+
+    try {
+        const data = await apiRequest({
+            action: "study_material",
+            subject_id: subjectId,
+            chapter_id: chapterId,
+            question_type_id: questionTypeId,
+            medium: medium
+        });
+        if (requestId !== studyWorkspaceState.requestId) return;
+        if (!data || !data.subject || !data.chapter || !data.question_type || !data.medium || !Array.isArray(data.questions) || !(data.study_book === null || typeof data.study_book === "object") || !(data.ai_explainer === null || typeof data.ai_explainer === "object")) {
+            throw new Error("The server returned incomplete study material.");
+        }
+        const validQuestions = data.questions.every(function(item) {
+            return item && typeof item.question === "string" && typeof item.answer === "string";
+        });
+        if (!validQuestions) throw new Error("The server returned incomplete study material.");
+        studyWorkspaceState.material = data;
+        updateWorkspaceHeader(data);
+        renderQuestionWorkspace();
+    } catch (error) {
+        if (requestId !== studyWorkspaceState.requestId) return;
+        renderWorkspaceError(error.message || "Study data is temporarily unavailable.");
+    }
 }
 
 

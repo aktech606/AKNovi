@@ -296,64 +296,45 @@
 
             <button
                 class="primary-button full-button"
+                type="button"
                 onclick="startStudy()">
 
                 Open Study Material
                 <span>→</span>
 
             </button>
+            <p id="studySelectorStatus" class="selector-status" role="status" aria-live="polite"></p>
 
 
-            <!-- AI EXPLAINER FUTURE AREA -->
+        </section>
 
-            <div class="ai-preview">
 
-                <div class="ai-icon">
-                    AI
+        <!-- =====================
+             STUDY WORKSPACE
+        ====================== -->
+
+        <section id="studyWorkspace" class="page" aria-labelledby="workspaceTitle">
+            <header class="workspace-header">
+                <button class="workspace-back" type="button" onclick="backToStudy()" aria-label="Back to study selector">
+                    <span aria-hidden="true">←</span>
+                    <span>Back</span>
+                </button>
+                <div class="workspace-brand" aria-label="AKNovi study material">
+                    <span class="workspace-brand-mark">AK<b>•</b></span>
+                    <div>
+                        <p class="small-label">AKNOVI</p>
+                        <h2 id="workspaceTitle">Study Material</h2>
+                    </div>
                 </div>
+                <div id="workspaceSelection" class="workspace-selection" aria-live="polite"></div>
+            </header>
 
-                <div>
-
-                    <p class="small-label">
-                        COMING WITH STUDY CONTENT
-                    </p>
-
-                    <h3>
-                        AI Chapter Explainer
-                    </h3>
-
-                    <p>
-                        Chapter explanations, visual learning
-                        and AI-generated explainer videos will
-                        be added here.
-                    </p>
-
+            <div id="workspaceContent" class="workspace-content" aria-live="polite">
+                <div class="workspace-loading" role="status">
+                    <span class="loading-mark" aria-hidden="true">AK<span>•</span></span>
+                    <p>Loading your study material…</p>
                 </div>
-
             </div>
-
-
-            <!-- RESULT -->
-
-            <div
-                id="studyResult"
-                class="study-result">
-
-                <div class="result-icon">
-                    AK<span>•</span>
-                </div>
-
-                <h3>
-                    Ready to Learn
-                </h3>
-
-                <p>
-                    Select your options above and open
-                    the study material.
-                </p>
-
-            </div>
-
         </section>
 
 
