@@ -50,6 +50,7 @@ function openPage(pageName) {
    ========================================================= */
 
 const API_URL = new URL("../api/data.php", document.currentScript.src).href;
+const STUDY_WORKSPACE_TIMEOUT_MS = 15000;
 const referenceData = { subjects: [], mediums: [], question_types: [] };
 const chapterCache = new Map();
 const chapterRequests = new Map();
@@ -58,11 +59,13 @@ const studyWorkspaceState = {
     material: null,
     questionIndex: 0,
     answerVisible: false,
-    requestId: 0
+    requestId: 0,
+    controller: null
 };
 const studyExplainerWorkspaceState = {
     explainer: null,
-    requestId: 0
+    requestId: 0,
+    controller: null
 };
 
 async function apiRequest(params, options) {
@@ -70,20 +73,55 @@ async function apiRequest(params, options) {
     Object.entries(params).forEach(function(entry) {
         url.searchParams.set(entry[0], entry[1]);
     });
-    const response = await fetch(url, {
-        headers: { Accept: "application/json" },
-        signal: options?.signal
-    });
-    let payload;
+    const timeoutMs = Number(options?.timeoutMs) || 0;
+    const externalSignal = options?.signal;
+    const requestController = timeoutMs ? new AbortController() : null;
+    let timedOut = false;
+    let timeoutId = null;
+    const abortFromExternal = function() {
+        requestController?.abort(externalSignal.reason);
+    };
+    if (requestController && externalSignal) {
+        if (externalSignal.aborted) abortFromExternal();
+        else externalSignal.addEventListener("abort", abortFromExternal, { once: true });
+    }
+
+    const requestPromise = (async function() {
+        const response = await fetch(url, {
+            headers: { Accept: "application/json" },
+            signal: requestController ? requestController.signal : externalSignal
+        });
+        let payload;
+        try {
+            payload = await response.json();
+        } catch (error) {
+            throw new Error("The server returned an invalid response.");
+        }
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.error || "Study data is temporarily unavailable.");
+        }
+        return payload.data;
+    })();
+
     try {
-        payload = await response.json();
+        if (!timeoutMs) return await requestPromise;
+        const timeoutPromise = new Promise(function(resolve, reject) {
+            timeoutId = window.setTimeout(function() {
+                timedOut = true;
+                requestController.abort();
+                reject(new Error("This request is taking longer than expected. Please try again."));
+            }, timeoutMs);
+        });
+        return await Promise.race([requestPromise, timeoutPromise]);
     } catch (error) {
-        throw new Error("The server returned an invalid response.");
+        if (timedOut) {
+            throw new Error("This request is taking longer than expected. Please try again.");
+        }
+        throw error;
+    } finally {
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+        if (externalSignal) externalSignal.removeEventListener("abort", abortFromExternal);
     }
-    if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Study data is temporarily unavailable.");
-    }
-    return payload.data;
 }
 
 function subjectStyle(name) {
@@ -757,7 +795,7 @@ function renderQuestionWorkspace() {
     if (supplementary) content.appendChild(supplementary);
 }
 
-function renderWorkspaceError(message, contentId, title) {
+function renderWorkspaceError(message, contentId, title, onRetry) {
     const content = document.getElementById(contentId || "workspaceContent");
     content.replaceChildren();
     const error = makeElement("section", "workspace-empty");
@@ -765,6 +803,12 @@ function renderWorkspaceError(message, contentId, title) {
     error.appendChild(makeElement("p", "small-label", "AKNOVI STUDY"));
     error.appendChild(makeElement("h2", "", title || "Study material could not be loaded"));
     error.appendChild(makeElement("p", "empty-copy", message));
+    if (typeof onRetry === "function") {
+        const retry = makeElement("button", "secondary-button", "Try Again");
+        retry.type = "button";
+        retry.addEventListener("click", onRetry);
+        error.appendChild(retry);
+    }
     const back = makeElement("button", "primary-button", "Back to study selector");
     back.type = "button";
     back.addEventListener("click", backToStudy);
@@ -773,6 +817,15 @@ function renderWorkspaceError(message, contentId, title) {
 }
 
 function backToStudy() {
+    if (document.getElementById("studyWorkspace")?.classList.contains("active-page")) {
+        studyWorkspaceState.requestId += 1;
+        studyWorkspaceState.controller?.abort();
+        studyWorkspaceState.controller = null;
+    } else if (document.getElementById("studyExplainerWorkspace")?.classList.contains("active-page")) {
+        studyExplainerWorkspaceState.requestId += 1;
+        studyExplainerWorkspaceState.controller?.abort();
+        studyExplainerWorkspaceState.controller = null;
+    }
     openPage("study");
 }
 
@@ -794,6 +847,9 @@ async function startStudy() {
     const selectorStatus = document.getElementById("studySelectorStatus");
     if (selectorStatus) selectorStatus.textContent = "";
 
+    studyWorkspaceState.controller?.abort();
+    const controller = new AbortController();
+    studyWorkspaceState.controller = controller;
     const requestId = ++studyWorkspaceState.requestId;
     studyWorkspaceState.material = null;
     studyWorkspaceState.questionIndex = 0;
@@ -808,7 +864,7 @@ async function startStudy() {
             chapter_id: chapterId,
             question_type_id: questionTypeId,
             medium: medium
-        });
+        }, { signal: controller.signal, timeoutMs: STUDY_WORKSPACE_TIMEOUT_MS });
         if (requestId !== studyWorkspaceState.requestId) return;
         if (!data || !data.subject || !data.chapter || !data.question_type || !data.medium || !Array.isArray(data.questions) || !(data.study_book === null || typeof data.study_book === "object") || !(data.ai_explainer === null || typeof data.ai_explainer === "object")) {
             throw new Error("The server returned incomplete study material.");
@@ -821,7 +877,10 @@ async function startStudy() {
         renderQuestionWorkspace();
     } catch (error) {
         if (requestId !== studyWorkspaceState.requestId) return;
-        renderWorkspaceError(error.message || "Study data is temporarily unavailable.");
+        if (controller.signal.aborted) return;
+        renderWorkspaceError(error.message || "Study data is temporarily unavailable.", "workspaceContent", "Study material could not be loaded", startStudy);
+    } finally {
+        if (studyWorkspaceState.controller === controller) studyWorkspaceState.controller = null;
     }
 }
 
@@ -883,6 +942,9 @@ async function startStudyExplainer() {
     }
     if (status) status.textContent = "";
 
+    studyExplainerWorkspaceState.controller?.abort();
+    const controller = new AbortController();
+    studyExplainerWorkspaceState.controller = controller;
     const requestId = ++studyExplainerWorkspaceState.requestId;
     studyExplainerWorkspaceState.explainer = null;
     openPage("studyExplainerWorkspace");
@@ -894,7 +956,7 @@ async function startStudyExplainer() {
             subject_id: subjectId,
             chapter_id: chapterId,
             medium: medium
-        });
+        }, { signal: controller.signal, timeoutMs: STUDY_WORKSPACE_TIMEOUT_MS });
         if (requestId !== studyExplainerWorkspaceState.requestId) return;
         if (!data || !data.subject || !data.chapter || !data.medium || !(data.ai_explainer === null || (data.ai_explainer && typeof data.ai_explainer === "object"))) {
             throw new Error("The server returned incomplete explainer data.");
@@ -913,7 +975,10 @@ async function startStudyExplainer() {
         renderStudyExplainerWorkspace(data);
     } catch (error) {
         if (requestId !== studyExplainerWorkspaceState.requestId) return;
-        renderWorkspaceError(error.message || "Study data is temporarily unavailable.", "explainerWorkspaceContent", "Explainer could not be loaded");
+        if (controller.signal.aborted) return;
+        renderWorkspaceError(error.message || "Study data is temporarily unavailable.", "explainerWorkspaceContent", "Explainer could not be loaded", startStudyExplainer);
+    } finally {
+        if (studyExplainerWorkspaceState.controller === controller) studyExplainerWorkspaceState.controller = null;
     }
 }
 
