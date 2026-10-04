@@ -137,15 +137,7 @@ INSERT INTO questions VALUES(17,4,43,3,'English','List out audio file formats.',
 INSERT INTO questions VALUES(18,4,43,3,'English','List out video file formats.','AVI, MPEG, MP4 and MOV.');
 INSERT INTO questions VALUES(19,4,43,4,'English','Explain in detail about Production team roles and responsibilities.',unistr('A multimedia production team consists of the following members:\u000a1. Production Manager: Defines and coordinates the project to ensure timely completion and quality. Needs technical, proposal-writing, communication, budgeting and human-resource management skills, and acts as team leader.\u000a2. Content Specialist: Researches the application content, including project information, graphics, data and facts.\u000a3. Script Writer: Plans the sequence of events for video or film scripts, visualizes concepts in a three-dimensional environment and may integrate virtual reality when needed.\u000a4. Text Editor: Ensures the content flows logically and that text is correctly structured and grammatically correct.\u000a5. Multimedia Architect: Integrates graphics, text, audio, music, video, photos and animation using authoring software.\u000a6. Computer Graphic Artist: Creates or edits backgrounds, bullets, buttons, pictures, 3-D objects, animation and logos.\u000a7. Audio and Video Specialist: Records and edits sound effects and handles narration and digitized video.\u000a8. Computer Programmer: Writes code or scripts for special functions, such as controlling video-window size and shape and peripherals.\u000a9. Web Master: Creates and maintains web pages and converts multimedia presentations into web pages.\u000aThe final multimedia product is a joint effort of the entire team.'));
 INSERT INTO questions VALUES(20,4,43,4,'English','Explain in detail about different file formats in multimedia files.',unistr('Multimedia uses different file formats for text, images, audio and video.\u000a\u000a1. Text: RTF (Rich Text Format) was introduced by Microsoft.\u000a\u000a2. Images:\u000a   - Raster images are made up of pixels. JPEG is identified as a raster image format.\u000a   - Vector images are made up of geometric shapes. Examples are AI, EPS, SVG and CDR.\u000a\u000a3. Audio:\u000a   - AIFF (Audio Interchange File Format) was developed by Apple Inc. and is used to store sound data.\u000a   - WMA (Windows Media Audio) is owned by Microsoft.\u000a   - RA (Real Audio) is designed for streaming audio over the Internet.\u000a   - WAV and MP3 are also common audio formats.\u000a\u000a4. Video:\u000a   - AVI (Audio/Video Interleave) is a Windows video format in which sound and picture are stored in alternating interleaved chunks.\u000a   - MPEG (Moving Picture Experts Group) is a standard for digital video and audio compression.'));
-CREATE TABLE study_books (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    subject_id INTEGER NOT NULL,
-    medium TEXT NOT NULL,
-    title TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    FOREIGN KEY (subject_id) REFERENCES subjects(id)
-);
-CREATE TABLE ai_explainers (
+CREATE TABLE IF NOT EXISTS "study_explainers" (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     subject_id INTEGER NOT NULL,
     chapter_id INTEGER NOT NULL,
